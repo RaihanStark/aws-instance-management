@@ -35,13 +35,16 @@
 		loadingPricing = true;
 		try {
 			// Create unique list of instance type + platform combinations
-			const uniqueInstances = instances.reduce((acc, inst) => {
-				const key = `${inst.type}-${inst.platform}`;
-				if (!acc.some(i => `${i.type}-${i.platform}` === key)) {
-					acc.push({ type: inst.type, platform: inst.platform });
-				}
-				return acc;
-			}, [] as Array<{ type: string; platform: 'Linux' | 'Windows' }>);
+			const uniqueInstances = instances.reduce(
+				(acc, inst) => {
+					const key = `${inst.type}-${inst.platform}`;
+					if (!acc.some((i) => `${i.type}-${i.platform}` === key)) {
+						acc.push({ type: inst.type, platform: inst.platform });
+					}
+					return acc;
+				},
+				[] as Array<{ type: string; platform: 'Linux' | 'Windows' }>
+			);
 
 			const response = await fetch('/api/pricing', {
 				method: 'POST',
@@ -109,11 +112,12 @@
 	}
 
 	function recalculateSessionCosts() {
-		instances = instances.map(instance => {
+		instances = instances.map((instance) => {
 			// Calculate uptime from launchTime (in hours, with decimals)
-			const currentSessionHours = instance.state === 'running'
-				? (Date.now() - new Date(instance.launchTime).getTime()) / (1000 * 60 * 60)
-				: 0;
+			const currentSessionHours =
+				instance.state === 'running'
+					? (Date.now() - new Date(instance.launchTime).getTime()) / (1000 * 60 * 60)
+					: 0;
 
 			// Get hourly rate from AWS Pricing API using type-platform key
 			const rateKey = `${instance.type}-${instance.platform}`;
@@ -134,7 +138,10 @@
 		});
 
 		// Calculate total session cost
-		totalSessionCost = instances.reduce((sum, inst) => sum + (inst.billing?.currentSessionCost || 0), 0);
+		totalSessionCost = instances.reduce(
+			(sum, inst) => sum + (inst.billing?.currentSessionCost || 0),
+			0
+		);
 	}
 
 	onMount(() => {
@@ -143,7 +150,7 @@
 
 		// Update costs every 30 seconds for running instances
 		const interval = setInterval(() => {
-			if (instances.some(i => i.state === 'running')) {
+			if (instances.some((i) => i.state === 'running')) {
 				recalculateSessionCosts();
 			}
 		}, 30000); // Update every 30 seconds
@@ -224,7 +231,7 @@
 
 <div class="min-h-screen">
 	<header class="bg-[#232f3e] text-white shadow-md">
-		<div class="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
+		<div class="mx-auto flex items-center justify-between px-6 py-4">
 			<div class="flex items-center gap-3">
 				<div class="block">
 					<svg width="32" height="32" viewBox="0 0 40 40" fill="none">
@@ -232,10 +239,10 @@
 						<path d="M20 10L30 15V25L20 30L10 25V15L20 10Z" fill="white" />
 					</svg>
 				</div>
-				<h1 class="text-lg font-medium m-0 text-white">AWS Instance Manager</h1>
+				<h1 class="m-0 text-lg font-medium text-white">AWS Instance Manager</h1>
 			</div>
 			<button
-				class="bg-transparent border border-[#aab7b8] text-white px-4 py-1.5 rounded text-sm cursor-pointer transition-all hover:bg-white/10 hover:border-white"
+				class="cursor-pointer rounded border border-[#aab7b8] bg-transparent px-4 py-1.5 text-sm text-white transition-all hover:border-white hover:bg-white/10"
 				on:click={handleLogout}
 			>
 				Sign out
@@ -245,37 +252,39 @@
 
 	<main class="p-6">
 		<!-- Monthly Cost Summary -->
-		<div class="max-w-7xl mx-auto mb-6 grid grid-cols-1 md:grid-cols-4 gap-4">
-			<div class="bg-white rounded-lg shadow p-6">
-				<div class="text-[#545b64] text-sm font-medium mb-1">Current Session Cost</div>
+		<div class="mx-auto mb-6 grid grid-cols-1 gap-4 md:grid-cols-4">
+			<div class="rounded-lg bg-white p-6 shadow">
+				<div class="mb-1 text-sm font-medium text-[#545b64]">Current Session Cost</div>
 				<div class="text-3xl font-semibold text-[#067f68]">${totalSessionCost.toFixed(4)}</div>
-				<div class="text-xs text-[#879596] mt-1">Real-time • Updates every 30s</div>
+				<div class="mt-1 text-xs text-[#879596]">Real-time • Updates every 30s</div>
 			</div>
-			<div class="bg-white rounded-lg shadow p-6">
-				<div class="text-[#545b64] text-sm font-medium mb-1">Total Monthly Hours</div>
+			<div class="rounded-lg bg-white p-6 shadow">
+				<div class="mb-1 text-sm font-medium text-[#545b64]">Total Monthly Hours</div>
 				<div class="text-3xl font-semibold text-[#16191f]">{totalMonthlyHours.toFixed(1)}</div>
-				<div class="text-xs text-[#879596] mt-1">From AWS • 24-48h delay</div>
+				<div class="mt-1 text-xs text-[#879596]">From AWS • 24-48h delay</div>
 			</div>
-			<div class="bg-white rounded-lg shadow p-6">
-				<div class="text-[#545b64] text-sm font-medium mb-1">Total Monthly Cost</div>
+			<div class="rounded-lg bg-white p-6 shadow">
+				<div class="mb-1 text-sm font-medium text-[#545b64]">Total Monthly Cost</div>
 				<div class="text-3xl font-semibold text-[#ff9900]">${totalMonthlyCost.toFixed(2)}</div>
-				<div class="text-xs text-[#879596] mt-1">From AWS • 24-48h delay</div>
+				<div class="mt-1 text-xs text-[#879596]">From AWS • 24-48h delay</div>
 			</div>
-			<div class="bg-white rounded-lg shadow p-6">
-				<div class="text-[#545b64] text-sm font-medium mb-1">Active Instances</div>
-				<div class="text-3xl font-semibold text-[#067f68]">{instances.filter(i => i.state === 'running').length}</div>
-				<div class="text-xs text-[#879596] mt-1">Real-time • Live count</div>
+			<div class="rounded-lg bg-white p-6 shadow">
+				<div class="mb-1 text-sm font-medium text-[#545b64]">Active Instances</div>
+				<div class="text-3xl font-semibold text-[#067f68]">
+					{instances.filter((i) => i.state === 'running').length}
+				</div>
+				<div class="mt-1 text-xs text-[#879596]">Real-time • Live count</div>
 			</div>
 		</div>
 
-		<div class="max-w-7xl mx-auto bg-white rounded-lg shadow overflow-hidden">
-			<div class="p-6 border-b border-[#e9ecef] flex justify-between items-start">
+		<div class="mx-auto overflow-hidden rounded-lg bg-white shadow">
+			<div class="flex items-start justify-between border-b border-[#e9ecef] p-6">
 				<div>
-					<h2 class="text-2xl font-medium text-[#16191f] m-0 mb-1">EC2 Instances</h2>
-					<p class="text-[#545b64] text-sm m-0">Manage your Amazon EC2 instances</p>
+					<h2 class="m-0 mb-1 text-2xl font-medium text-[#16191f]">EC2 Instances</h2>
+					<p class="m-0 text-sm text-[#545b64]">Manage your Amazon EC2 instances</p>
 				</div>
 				<button
-					class="px-4 py-2 bg-[#ff9900] text-white rounded text-sm font-medium transition-colors hover:bg-[#ec7211] disabled:bg-[#aab7b8] disabled:cursor-not-allowed"
+					class="rounded bg-[#ff9900] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#ec7211] disabled:cursor-not-allowed disabled:bg-[#aab7b8]"
 					on:click={() => {
 						loadInstances();
 						loadBillingData();
@@ -288,82 +297,134 @@
 
 			{#if loading}
 				<div class="py-15 text-center text-[#545b64]">
-					<div class="border-4 border-[#e9ecef] border-t-[#ff9900] rounded-full w-10 h-10 animate-spin mx-auto mb-4"></div>
+					<div
+						class="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-4 border-[#e9ecef] border-t-[#ff9900]"
+					></div>
 					<p>Loading instances...</p>
 				</div>
 			{:else}
 				<div class="overflow-x-auto">
 					<table class="w-full border-collapse text-sm">
-						<thead class="bg-[#fafafa] border-b-2 border-[#e9ecef]">
+						<thead class="border-b-2 border-[#e9ecef] bg-[#fafafa]">
 							<tr>
-								<th class="text-left px-4 py-3 font-semibold text-[#16191f] text-xs whitespace-nowrap">Name</th>
-								<th class="text-left px-4 py-3 font-semibold text-[#16191f] text-xs whitespace-nowrap">Instance ID</th>
-								<th class="text-left px-4 py-3 font-semibold text-[#16191f] text-xs whitespace-nowrap">Type</th>
-								<th class="text-left px-4 py-3 font-semibold text-[#16191f] text-xs whitespace-nowrap">Hourly Rate</th>
-								<th class="text-left px-4 py-3 font-semibold text-[#16191f] text-xs whitespace-nowrap">Status</th>
-								<th class="text-left px-4 py-3 font-semibold text-[#16191f] text-xs whitespace-nowrap">Public IP</th>
-								<th class="text-left px-4 py-3 font-semibold text-[#16191f] text-xs whitespace-nowrap">Session Uptime</th>
-								<th class="text-left px-4 py-3 font-semibold text-[#16191f] text-xs whitespace-nowrap">Session Cost</th>
-								<th class="text-left px-4 py-3 font-semibold text-[#16191f] text-xs whitespace-nowrap">Monthly Hrs</th>
-								<th class="text-left px-4 py-3 font-semibold text-[#16191f] text-xs whitespace-nowrap">Monthly Cost</th>
-								<th class="text-left px-4 py-3 font-semibold text-[#16191f] text-xs whitespace-nowrap">Actions</th>
+								<th
+									class="px-4 py-3 text-left text-xs font-semibold whitespace-nowrap text-[#16191f]"
+									>Name</th
+								>
+								<th
+									class="px-4 py-3 text-left text-xs font-semibold whitespace-nowrap text-[#16191f]"
+									>Instance ID</th
+								>
+								<th
+									class="px-4 py-3 text-left text-xs font-semibold whitespace-nowrap text-[#16191f]"
+									>Type</th
+								>
+								<th
+									class="px-4 py-3 text-left text-xs font-semibold whitespace-nowrap text-[#16191f]"
+									>Hourly Rate</th
+								>
+								<th
+									class="px-4 py-3 text-left text-xs font-semibold whitespace-nowrap text-[#16191f]"
+									>Status</th
+								>
+								<th
+									class="px-4 py-3 text-left text-xs font-semibold whitespace-nowrap text-[#16191f]"
+									>Public IP</th
+								>
+								<th
+									class="px-4 py-3 text-left text-xs font-semibold whitespace-nowrap text-[#16191f]"
+									>Session Uptime</th
+								>
+								<th
+									class="px-4 py-3 text-left text-xs font-semibold whitespace-nowrap text-[#16191f]"
+									>Session Cost</th
+								>
+								<th
+									class="px-4 py-3 text-left text-xs font-semibold whitespace-nowrap text-[#16191f]"
+									>Monthly Hrs</th
+								>
+								<th
+									class="px-4 py-3 text-left text-xs font-semibold whitespace-nowrap text-[#16191f]"
+									>Monthly Cost</th
+								>
+								<th
+									class="px-4 py-3 text-left text-xs font-semibold whitespace-nowrap text-[#16191f]"
+									>Actions</th
+								>
 							</tr>
 						</thead>
 						<tbody>
 							{#each instances as instance}
-								<tr class="hover:bg-[#fafafa] transition-colors">
-									<td class="px-4 py-4 border-b border-[#e9ecef] text-[#16191f]">
+								<tr class="transition-colors hover:bg-[#fafafa]">
+									<td class="border-b border-[#e9ecef] px-4 py-4 text-[#16191f]">
 										<span class="font-medium">{instance.name}</span>
 									</td>
-									<td class="px-4 py-4 border-b border-[#e9ecef] text-[#16191f]">
-										<span class="font-mono text-[#545b64] text-xs">{instance.id}</span>
+									<td class="border-b border-[#e9ecef] px-4 py-4 text-[#16191f]">
+										<span class="font-mono text-xs text-[#545b64]">{instance.id}</span>
 									</td>
-									<td class="px-4 py-4 border-b border-[#e9ecef] text-[#16191f]">{instance.type}</td>
-									<td class="px-4 py-4 border-b border-[#e9ecef] text-[#16191f]">
+									<td class="border-b border-[#e9ecef] px-4 py-4 text-[#16191f]">{instance.type}</td
+									>
+									<td class="border-b border-[#e9ecef] px-4 py-4 text-[#16191f]">
 										{#if loadingPricing}
-											<span class="text-[#879596] text-xs">Loading...</span>
+											<span class="text-xs text-[#879596]">Loading...</span>
 										{:else}
 											<span class="font-medium text-[#545b64]">
-												${(pricingRates[`${instance.type}-${instance.platform}`] || 0).toFixed(4)}/hr
+												${(pricingRates[`${instance.type}-${instance.platform}`] || 0).toFixed(
+													4
+												)}/hr
 											</span>
 										{/if}
 									</td>
-									<td class="px-4 py-4 border-b border-[#e9ecef] text-[#16191f]">
-										<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium text-white {getStateBgColor(instance.state)}">
-											<span class="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span>
+									<td class="border-b border-[#e9ecef] px-4 py-4 text-[#16191f]">
+										<span
+											class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium text-white {getStateBgColor(
+												instance.state
+											)}"
+										>
+											<span class="h-1.5 w-1.5 animate-pulse rounded-full bg-white"></span>
 											{instance.state.charAt(0).toUpperCase() + instance.state.slice(1)}
 										</span>
 									</td>
-									<td class="px-4 py-4 border-b border-[#e9ecef] text-[#16191f]">{instance.publicIp}</td>
-									<td class="px-4 py-4 border-b border-[#e9ecef] text-[#16191f]">
-										<span class="text-[#16191f] font-medium">
-											{instance.billing?.currentSessionHours ? instance.billing.currentSessionHours.toFixed(2) : '0.00'}h
+									<td class="border-b border-[#e9ecef] px-4 py-4 text-[#16191f]"
+										>{instance.publicIp}</td
+									>
+									<td class="border-b border-[#e9ecef] px-4 py-4 text-[#16191f]">
+										<span class="font-medium text-[#16191f]">
+											{instance.billing?.currentSessionHours
+												? instance.billing.currentSessionHours.toFixed(2)
+												: '0.00'}h
 										</span>
 									</td>
-									<td class="px-4 py-4 border-b border-[#e9ecef] text-[#16191f]">
+									<td class="border-b border-[#e9ecef] px-4 py-4 text-[#16191f]">
 										<span class="font-semibold text-[#067f68]">
-											${instance.billing?.currentSessionCost ? instance.billing.currentSessionCost.toFixed(4) : '0.0000'}
+											${instance.billing?.currentSessionCost
+												? instance.billing.currentSessionCost.toFixed(4)
+												: '0.0000'}
 										</span>
 									</td>
-									<td class="px-4 py-4 border-b border-[#e9ecef] text-[#16191f]">
+									<td class="border-b border-[#e9ecef] px-4 py-4 text-[#16191f]">
 										{#if loadingBilling}
-											<span class="text-[#879596] text-xs">Loading...</span>
+											<span class="text-xs text-[#879596]">Loading...</span>
 										{:else}
-											<span class="font-medium">{instance.billing?.monthlyHours.toFixed(1) || '0.0'}h</span>
+											<span class="font-medium"
+												>{instance.billing?.monthlyHours.toFixed(1) || '0.0'}h</span
+											>
 										{/if}
 									</td>
-									<td class="px-4 py-4 border-b border-[#e9ecef] text-[#16191f]">
+									<td class="border-b border-[#e9ecef] px-4 py-4 text-[#16191f]">
 										{#if loadingBilling}
-											<span class="text-[#879596] text-xs">Loading...</span>
+											<span class="text-xs text-[#879596]">Loading...</span>
 										{:else}
-											<span class="font-semibold text-[#ff9900]">${instance.billing?.monthlyCost.toFixed(2) || '0.00'}</span>
+											<span class="font-semibold text-[#ff9900]"
+												>${instance.billing?.monthlyCost.toFixed(2) || '0.00'}</span
+											>
 										{/if}
 									</td>
-									<td class="px-4 py-4 border-b border-[#e9ecef] text-[#16191f]">
+									<td class="border-b border-[#e9ecef] px-4 py-4 text-[#16191f]">
 										<div class="flex gap-2">
 											{#if instance.state === 'running'}
 												<button
-													class="px-4 py-1.5 rounded text-xs font-medium cursor-pointer transition-all border min-w-[80px] bg-[#d13212] text-white border-[#d13212] hover:bg-[#a82a0d] disabled:bg-[#e9ecef] disabled:border-[#e9ecef] disabled:text-[#879596] disabled:cursor-not-allowed disabled:hover:bg-[#e9ecef]"
+													class="min-w-[80px] cursor-pointer rounded border border-[#d13212] bg-[#d13212] px-4 py-1.5 text-xs font-medium text-white transition-all hover:bg-[#a82a0d] disabled:cursor-not-allowed disabled:border-[#e9ecef] disabled:bg-[#e9ecef] disabled:text-[#879596] disabled:hover:bg-[#e9ecef]"
 													on:click={() => handleAction(instance.id, 'stop')}
 													disabled={actionLoading[instance.id]}
 												>
@@ -371,7 +432,7 @@
 												</button>
 											{:else if instance.state === 'stopped'}
 												<button
-													class="px-4 py-1.5 rounded text-xs font-medium cursor-pointer transition-all border min-w-[80px] bg-[#067f68] text-white border-[#067f68] hover:bg-[#055d4f] disabled:bg-[#e9ecef] disabled:border-[#e9ecef] disabled:text-[#879596] disabled:cursor-not-allowed disabled:hover:bg-[#e9ecef]"
+													class="min-w-[80px] cursor-pointer rounded border border-[#067f68] bg-[#067f68] px-4 py-1.5 text-xs font-medium text-white transition-all hover:bg-[#055d4f] disabled:cursor-not-allowed disabled:border-[#e9ecef] disabled:bg-[#e9ecef] disabled:text-[#879596] disabled:hover:bg-[#e9ecef]"
 													on:click={() => handleAction(instance.id, 'start')}
 													disabled={actionLoading[instance.id]}
 												>
@@ -379,7 +440,7 @@
 												</button>
 											{:else}
 												<button
-													class="px-4 py-1.5 rounded text-xs font-medium border min-w-[80px] bg-[#e9ecef] border-[#e9ecef] text-[#879596] cursor-not-allowed"
+													class="min-w-[80px] cursor-not-allowed rounded border border-[#e9ecef] bg-[#e9ecef] px-4 py-1.5 text-xs font-medium text-[#879596]"
 													disabled
 												>
 													{instance.state === 'pending' ? 'Starting...' : 'Stopping...'}
