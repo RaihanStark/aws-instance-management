@@ -9,11 +9,80 @@
 		state: 'running' | 'stopped' | 'pending' | 'stopping' | 'terminated';
 		publicIp: string;
 		launchTime: string;
+		platform: 'Linux' | 'Windows';
+		billing?: {
+			currentSessionHours: number;
+			currentSessionCost: number;
+			monthlyHours: number;
+			monthlyCost: number;
+		};
 	}
+
+	let totalMonthlyCost = 0;
+	let totalMonthlyHours = 0;
+	let totalSessionCost = 0;
 
 	let instances: EC2Instance[] = [];
 	let loading = true;
+	let loadingBilling = true;
+	let loadingPricing = true;
 	let actionLoading: { [key: string]: boolean } = {};
+	let pricingRates: { [key: string]: number } = {};
+
+	async function loadPricingRates(instances: EC2Instance[]) {
+		if (instances.length === 0) return;
+
+		loadingPricing = true;
+		try {
+			// Create unique list of instance type + platform combinations
+			const uniqueInstances = instances.reduce((acc, inst) => {
+				const key = `${inst.type}-${inst.platform}`;
+				if (!acc.some(i => `${i.type}-${i.platform}` === key)) {
+					acc.push({ type: inst.type, platform: inst.platform });
+				}
+				return acc;
+			}, [] as Array<{ type: string; platform: 'Linux' | 'Windows' }>);
+
+			const response = await fetch('/api/pricing', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json'
+				},
+				body: JSON.stringify({ instances: uniqueInstances })
+			});
+
+			const data = await response.json();
+
+			if (response.ok) {
+				pricingRates = data.rates;
+			} else {
+				console.error('Failed to load pricing:', data.error);
+			}
+		} catch (error) {
+			console.error('Error loading pricing:', error);
+		} finally {
+			loadingPricing = false;
+		}
+	}
+
+	async function loadBillingData() {
+		loadingBilling = true;
+		try {
+			const response = await fetch('/api/billing');
+			const data = await response.json();
+
+			if (response.ok) {
+				totalMonthlyHours = data.totalHours;
+				totalMonthlyCost = data.totalCost;
+			} else {
+				console.error('Failed to load billing data:', data.error);
+			}
+		} catch (error) {
+			console.error('Error loading billing data:', error);
+		} finally {
+			loadingBilling = false;
+		}
+	}
 
 	async function loadInstances() {
 		loading = true;
@@ -23,6 +92,12 @@
 
 			if (response.ok) {
 				instances = data.instances;
+
+				// Load pricing rates for all instances (with their platforms)
+				await loadPricingRates(instances);
+
+				// Calculate session costs for each instance
+				recalculateSessionCosts();
 			} else {
 				console.error('Failed to load instances:', data.error);
 			}
@@ -33,8 +108,47 @@
 		}
 	}
 
+	function recalculateSessionCosts() {
+		instances = instances.map(instance => {
+			// Calculate uptime from launchTime (in hours, with decimals)
+			const currentSessionHours = instance.state === 'running'
+				? (Date.now() - new Date(instance.launchTime).getTime()) / (1000 * 60 * 60)
+				: 0;
+
+			// Get hourly rate from AWS Pricing API using type-platform key
+			const rateKey = `${instance.type}-${instance.platform}`;
+			const hourlyRate = pricingRates[rateKey] || 0;
+
+			// Calculate current session cost
+			const currentSessionCost = currentSessionHours * hourlyRate;
+
+			return {
+				...instance,
+				billing: {
+					currentSessionHours,
+					currentSessionCost,
+					monthlyHours: instance.billing?.monthlyHours || 0,
+					monthlyCost: instance.billing?.monthlyCost || 0
+				}
+			};
+		});
+
+		// Calculate total session cost
+		totalSessionCost = instances.reduce((sum, inst) => sum + (inst.billing?.currentSessionCost || 0), 0);
+	}
+
 	onMount(() => {
 		loadInstances();
+		loadBillingData();
+
+		// Update costs every 30 seconds for running instances
+		const interval = setInterval(() => {
+			if (instances.some(i => i.state === 'running')) {
+				recalculateSessionCosts();
+			}
+		}, 30000); // Update every 30 seconds
+
+		return () => clearInterval(interval);
 	});
 
 	async function handleLogout() {
@@ -130,6 +244,30 @@
 	</header>
 
 	<main class="p-6">
+		<!-- Monthly Cost Summary -->
+		<div class="max-w-7xl mx-auto mb-6 grid grid-cols-1 md:grid-cols-4 gap-4">
+			<div class="bg-white rounded-lg shadow p-6">
+				<div class="text-[#545b64] text-sm font-medium mb-1">Current Session Cost</div>
+				<div class="text-3xl font-semibold text-[#067f68]">${totalSessionCost.toFixed(4)}</div>
+				<div class="text-xs text-[#879596] mt-1">Real-time • Updates every 30s</div>
+			</div>
+			<div class="bg-white rounded-lg shadow p-6">
+				<div class="text-[#545b64] text-sm font-medium mb-1">Total Monthly Hours</div>
+				<div class="text-3xl font-semibold text-[#16191f]">{totalMonthlyHours.toFixed(1)}</div>
+				<div class="text-xs text-[#879596] mt-1">From AWS • 24-48h delay</div>
+			</div>
+			<div class="bg-white rounded-lg shadow p-6">
+				<div class="text-[#545b64] text-sm font-medium mb-1">Total Monthly Cost</div>
+				<div class="text-3xl font-semibold text-[#ff9900]">${totalMonthlyCost.toFixed(2)}</div>
+				<div class="text-xs text-[#879596] mt-1">From AWS • 24-48h delay</div>
+			</div>
+			<div class="bg-white rounded-lg shadow p-6">
+				<div class="text-[#545b64] text-sm font-medium mb-1">Active Instances</div>
+				<div class="text-3xl font-semibold text-[#067f68]">{instances.filter(i => i.state === 'running').length}</div>
+				<div class="text-xs text-[#879596] mt-1">Real-time • Live count</div>
+			</div>
+		</div>
+
 		<div class="max-w-7xl mx-auto bg-white rounded-lg shadow overflow-hidden">
 			<div class="p-6 border-b border-[#e9ecef] flex justify-between items-start">
 				<div>
@@ -138,10 +276,13 @@
 				</div>
 				<button
 					class="px-4 py-2 bg-[#ff9900] text-white rounded text-sm font-medium transition-colors hover:bg-[#ec7211] disabled:bg-[#aab7b8] disabled:cursor-not-allowed"
-					on:click={loadInstances}
-					disabled={loading}
+					on:click={() => {
+						loadInstances();
+						loadBillingData();
+					}}
+					disabled={loading || loadingBilling}
 				>
-					{loading ? 'Refreshing...' : 'Refresh'}
+					{loading || loadingBilling ? 'Refreshing...' : 'Refresh'}
 				</button>
 			</div>
 
@@ -157,10 +298,14 @@
 							<tr>
 								<th class="text-left px-4 py-3 font-semibold text-[#16191f] text-xs whitespace-nowrap">Name</th>
 								<th class="text-left px-4 py-3 font-semibold text-[#16191f] text-xs whitespace-nowrap">Instance ID</th>
-								<th class="text-left px-4 py-3 font-semibold text-[#16191f] text-xs whitespace-nowrap">Instance Type</th>
+								<th class="text-left px-4 py-3 font-semibold text-[#16191f] text-xs whitespace-nowrap">Type</th>
+								<th class="text-left px-4 py-3 font-semibold text-[#16191f] text-xs whitespace-nowrap">Hourly Rate</th>
 								<th class="text-left px-4 py-3 font-semibold text-[#16191f] text-xs whitespace-nowrap">Status</th>
 								<th class="text-left px-4 py-3 font-semibold text-[#16191f] text-xs whitespace-nowrap">Public IP</th>
-								<th class="text-left px-4 py-3 font-semibold text-[#16191f] text-xs whitespace-nowrap">Launch Time</th>
+								<th class="text-left px-4 py-3 font-semibold text-[#16191f] text-xs whitespace-nowrap">Session Uptime</th>
+								<th class="text-left px-4 py-3 font-semibold text-[#16191f] text-xs whitespace-nowrap">Session Cost</th>
+								<th class="text-left px-4 py-3 font-semibold text-[#16191f] text-xs whitespace-nowrap">Monthly Hrs</th>
+								<th class="text-left px-4 py-3 font-semibold text-[#16191f] text-xs whitespace-nowrap">Monthly Cost</th>
 								<th class="text-left px-4 py-3 font-semibold text-[#16191f] text-xs whitespace-nowrap">Actions</th>
 							</tr>
 						</thead>
@@ -175,13 +320,45 @@
 									</td>
 									<td class="px-4 py-4 border-b border-[#e9ecef] text-[#16191f]">{instance.type}</td>
 									<td class="px-4 py-4 border-b border-[#e9ecef] text-[#16191f]">
+										{#if loadingPricing}
+											<span class="text-[#879596] text-xs">Loading...</span>
+										{:else}
+											<span class="font-medium text-[#545b64]">
+												${(pricingRates[`${instance.type}-${instance.platform}`] || 0).toFixed(4)}/hr
+											</span>
+										{/if}
+									</td>
+									<td class="px-4 py-4 border-b border-[#e9ecef] text-[#16191f]">
 										<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium text-white {getStateBgColor(instance.state)}">
 											<span class="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span>
 											{instance.state.charAt(0).toUpperCase() + instance.state.slice(1)}
 										</span>
 									</td>
 									<td class="px-4 py-4 border-b border-[#e9ecef] text-[#16191f]">{instance.publicIp}</td>
-									<td class="px-4 py-4 border-b border-[#e9ecef] text-[#16191f]">{instance.launchTime}</td>
+									<td class="px-4 py-4 border-b border-[#e9ecef] text-[#16191f]">
+										<span class="text-[#16191f] font-medium">
+											{instance.billing?.currentSessionHours ? instance.billing.currentSessionHours.toFixed(2) : '0.00'}h
+										</span>
+									</td>
+									<td class="px-4 py-4 border-b border-[#e9ecef] text-[#16191f]">
+										<span class="font-semibold text-[#067f68]">
+											${instance.billing?.currentSessionCost ? instance.billing.currentSessionCost.toFixed(4) : '0.0000'}
+										</span>
+									</td>
+									<td class="px-4 py-4 border-b border-[#e9ecef] text-[#16191f]">
+										{#if loadingBilling}
+											<span class="text-[#879596] text-xs">Loading...</span>
+										{:else}
+											<span class="font-medium">{instance.billing?.monthlyHours.toFixed(1) || '0.0'}h</span>
+										{/if}
+									</td>
+									<td class="px-4 py-4 border-b border-[#e9ecef] text-[#16191f]">
+										{#if loadingBilling}
+											<span class="text-[#879596] text-xs">Loading...</span>
+										{:else}
+											<span class="font-semibold text-[#ff9900]">${instance.billing?.monthlyCost.toFixed(2) || '0.00'}</span>
+										{/if}
+									</td>
 									<td class="px-4 py-4 border-b border-[#e9ecef] text-[#16191f]">
 										<div class="flex gap-2">
 											{#if instance.state === 'running'}

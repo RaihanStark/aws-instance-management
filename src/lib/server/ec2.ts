@@ -23,6 +23,7 @@ export interface EC2Instance {
 	state: 'running' | 'stopped' | 'pending' | 'stopping' | 'terminated';
 	publicIp: string;
 	launchTime: string;
+	platform: 'Linux' | 'Windows';
 }
 
 /**
@@ -48,13 +49,17 @@ export async function listInstances(): Promise<EC2Instance[]> {
 
 						const nameTag = instance.Tags?.find(tag => tag.Key === 'Name');
 
+						// Determine platform: if Platform field exists and is 'windows', it's Windows, otherwise Linux
+						const platform: 'Linux' | 'Windows' = instance.Platform?.toLowerCase() === 'windows' ? 'Windows' : 'Linux';
+
 						instances.push({
 							id: instance.InstanceId || 'Unknown',
 							name: nameTag?.Value || 'Unnamed Instance',
 							type: instance.InstanceType || 'Unknown',
 							state: (instance.State?.Name as EC2Instance['state']) || 'stopped',
 							publicIp: instance.PublicIpAddress || '-',
-							launchTime: instance.LaunchTime?.toISOString().replace('T', ' ').substring(0, 19) || 'Unknown'
+							launchTime: instance.LaunchTime?.toISOString().replace('T', ' ').substring(0, 19) || 'Unknown',
+							platform
 						});
 					}
 				}
