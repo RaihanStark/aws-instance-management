@@ -11,8 +11,6 @@
 		launchTime: string;
 		platform: 'Linux' | 'Windows';
 		billing?: {
-			currentSessionHours: number;
-			currentSessionCost: number;
 			monthlyHours: number;
 			monthlyCost: number;
 		};
@@ -20,7 +18,6 @@
 
 	let totalMonthlyCost = 0;
 	let totalMonthlyHours = 0;
-	let totalSessionCost = 0;
 
 	let instances: EC2Instance[] = [];
 	let loading = true;
@@ -98,9 +95,6 @@
 
 				// Load pricing rates for all instances (with their platforms)
 				await loadPricingRates(instances);
-
-				// Calculate session costs for each instance
-				recalculateSessionCosts();
 			} else {
 				console.error('Failed to load instances:', data.error);
 			}
@@ -111,51 +105,9 @@
 		}
 	}
 
-	function recalculateSessionCosts() {
-		instances = instances.map((instance) => {
-			// Calculate uptime from launchTime (in hours, with decimals)
-			const currentSessionHours =
-				instance.state === 'running'
-					? (Date.now() - new Date(instance.launchTime).getTime()) / (1000 * 60 * 60)
-					: 0;
-
-			// Get hourly rate from AWS Pricing API using type-platform key
-			const rateKey = `${instance.type}-${instance.platform}`;
-			const hourlyRate = pricingRates[rateKey] || 0;
-
-			// Calculate current session cost
-			const currentSessionCost = currentSessionHours * hourlyRate;
-
-			return {
-				...instance,
-				billing: {
-					currentSessionHours,
-					currentSessionCost,
-					monthlyHours: instance.billing?.monthlyHours || 0,
-					monthlyCost: instance.billing?.monthlyCost || 0
-				}
-			};
-		});
-
-		// Calculate total session cost
-		totalSessionCost = instances.reduce(
-			(sum, inst) => sum + (inst.billing?.currentSessionCost || 0),
-			0
-		);
-	}
-
 	onMount(() => {
 		loadInstances();
 		loadBillingData();
-
-		// Update costs every 30 seconds for running instances
-		const interval = setInterval(() => {
-			if (instances.some((i) => i.state === 'running')) {
-				recalculateSessionCosts();
-			}
-		}, 30000); // Update every 30 seconds
-
-		return () => clearInterval(interval);
 	});
 
 	async function handleLogout() {
@@ -231,7 +183,7 @@
 
 <div class="min-h-screen">
 	<header class="bg-[#232f3e] text-white shadow-md">
-		<div class="mx-auto flex items-center justify-between px-6 py-4">
+		<div class="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
 			<div class="flex items-center gap-3">
 				<div class="block">
 					<svg width="32" height="32" viewBox="0 0 40 40" fill="none">
@@ -252,12 +204,7 @@
 
 	<main class="p-6">
 		<!-- Monthly Cost Summary -->
-		<div class="mx-auto mb-6 grid grid-cols-1 gap-4 md:grid-cols-4">
-			<div class="rounded-lg bg-white p-6 shadow">
-				<div class="mb-1 text-sm font-medium text-[#545b64]">Current Session Cost</div>
-				<div class="text-3xl font-semibold text-[#067f68]">${totalSessionCost.toFixed(4)}</div>
-				<div class="mt-1 text-xs text-[#879596]">Real-time • Updates every 30s</div>
-			</div>
+		<div class="mx-auto mb-6 grid max-w-7xl grid-cols-1 gap-4 md:grid-cols-3">
 			<div class="rounded-lg bg-white p-6 shadow">
 				<div class="mb-1 text-sm font-medium text-[#545b64]">Total Monthly Hours</div>
 				<div class="text-3xl font-semibold text-[#16191f]">{totalMonthlyHours.toFixed(1)}</div>
@@ -277,7 +224,7 @@
 			</div>
 		</div>
 
-		<div class="mx-auto overflow-hidden rounded-lg bg-white shadow">
+		<div class="mx-auto max-w-7xl overflow-hidden rounded-lg bg-white shadow">
 			<div class="flex items-start justify-between border-b border-[#e9ecef] p-6">
 				<div>
 					<h2 class="m-0 mb-1 text-2xl font-medium text-[#16191f]">EC2 Instances</h2>
@@ -333,14 +280,6 @@
 								>
 								<th
 									class="px-4 py-3 text-left text-xs font-semibold whitespace-nowrap text-[#16191f]"
-									>Session Uptime</th
-								>
-								<th
-									class="px-4 py-3 text-left text-xs font-semibold whitespace-nowrap text-[#16191f]"
-									>Session Cost</th
-								>
-								<th
-									class="px-4 py-3 text-left text-xs font-semibold whitespace-nowrap text-[#16191f]"
 									>Monthly Hrs</th
 								>
 								<th
@@ -388,20 +327,6 @@
 									<td class="border-b border-[#e9ecef] px-4 py-4 text-[#16191f]"
 										>{instance.publicIp}</td
 									>
-									<td class="border-b border-[#e9ecef] px-4 py-4 text-[#16191f]">
-										<span class="font-medium text-[#16191f]">
-											{instance.billing?.currentSessionHours
-												? instance.billing.currentSessionHours.toFixed(2)
-												: '0.00'}h
-										</span>
-									</td>
-									<td class="border-b border-[#e9ecef] px-4 py-4 text-[#16191f]">
-										<span class="font-semibold text-[#067f68]">
-											${instance.billing?.currentSessionCost
-												? instance.billing.currentSessionCost.toFixed(4)
-												: '0.0000'}
-										</span>
-									</td>
 									<td class="border-b border-[#e9ecef] px-4 py-4 text-[#16191f]">
 										{#if loadingBilling}
 											<span class="text-xs text-[#879596]">Loading...</span>

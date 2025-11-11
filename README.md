@@ -18,11 +18,12 @@ Instead of paying for 720+ hours per month (24/7 operation), you only pay for th
 - **Simple Dashboard**: View all your EC2 instances at a glance
 - **One-Click Control**: Start and stop instances with a single click
 - **Cost Tracking**:
-  - Real-time session cost (from start to current time)
-  - Monthly usage hours and costs
-  - Hourly pricing rates (automatically fetched from AWS)
+  - Monthly usage hours and costs (from AWS Cost Explorer)
+  - Hourly pricing rates (automatically fetched from AWS Pricing API)
 - **Multi-Platform Support**: Automatically detects and prices Linux and Windows instances correctly
 - **Secure**: Password-protected with server-side authentication
+
+> **Note on Real-Time Session Tracking**: AWS EC2 does not provide an API to track when an instance was last started. The `LaunchTime` field represents when the instance was originally created, not when it was last started after a stop. Therefore, accurate real-time session cost tracking is not currently supported by AWS infrastructure.
 
 ## Prerequisites
 
@@ -89,8 +90,7 @@ npm run preview
 2. **View Instances**: See all your EC2 instances with their current status
 3. **Control**: Click "Start" or "Stop" to manage your instances
 4. **Monitor Costs**:
-   - **Session Cost**: Real-time calculation from when the instance started
-   - **Monthly Hours/Cost**: Historical data from AWS (24-48h delay)
+   - **Monthly Hours/Cost**: Historical data from AWS Cost Explorer (24-48h delay)
    - **Hourly Rate**: Accurate pricing from AWS Pricing API
 
 ## Cost Savings Example
