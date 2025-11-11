@@ -6,7 +6,7 @@
 		id: string;
 		name: string;
 		type: string;
-		state: 'running' | 'stopped' | 'pending' | 'stopping';
+		state: 'running' | 'stopped' | 'pending' | 'stopping' | 'terminated';
 		publicIp: string;
 		launchTime: string;
 	}
@@ -15,37 +15,26 @@
 	let loading = true;
 	let actionLoading: { [key: string]: boolean } = {};
 
-	onMount(() => {
-		// Mock data - replace with actual API call
-		setTimeout(() => {
-			instances = [
-				{
-					id: 'i-1234567890abcdef0',
-					name: 'Production Server',
-					type: 't2.micro',
-					state: 'running',
-					publicIp: '54.123.45.67',
-					launchTime: '2025-01-10 14:30:00'
-				},
-				{
-					id: 'i-0987654321fedcba0',
-					name: 'Development Server',
-					type: 't2.small',
-					state: 'stopped',
-					publicIp: '-',
-					launchTime: '2025-01-08 09:15:00'
-				},
-				{
-					id: 'i-abcdef1234567890a',
-					name: 'Staging Server',
-					type: 't3.medium',
-					state: 'running',
-					publicIp: '52.98.76.54',
-					launchTime: '2025-01-11 08:00:00'
-				}
-			];
+	async function loadInstances() {
+		loading = true;
+		try {
+			const response = await fetch('/api/instances');
+			const data = await response.json();
+
+			if (response.ok) {
+				instances = data.instances;
+			} else {
+				console.error('Failed to load instances:', data.error);
+			}
+		} catch (error) {
+			console.error('Error loading instances:', error);
+		} finally {
 			loading = false;
-		}, 1000);
+		}
+	}
+
+	onMount(() => {
+		loadInstances();
 	});
 
 	async function handleLogout() {
@@ -63,30 +52,37 @@
 	async function handleAction(instanceId: string, action: 'start' | 'stop') {
 		actionLoading[instanceId] = true;
 
-		// Mock API call - replace with actual AWS API call
-		await new Promise((resolve) => setTimeout(resolve, 1500));
+		try {
+			const endpoint = action === 'start' ? '/api/instances/start' : '/api/instances/stop';
+			const response = await fetch(endpoint, {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json'
+				},
+				body: JSON.stringify({ instanceId })
+			});
 
-		const instance = instances.find((i) => i.id === instanceId);
-		if (instance) {
-			if (action === 'start') {
-				instance.state = 'pending';
-				setTimeout(() => {
-					instance.state = 'running';
-					instance.publicIp = `54.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}`;
+			if (response.ok) {
+				// Update instance state optimistically
+				const instance = instances.find((i) => i.id === instanceId);
+				if (instance) {
+					instance.state = action === 'start' ? 'pending' : 'stopping';
 					instances = [...instances];
+				}
+
+				// Reload instances after a short delay to get updated state
+				setTimeout(() => {
+					loadInstances();
 				}, 2000);
 			} else {
-				instance.state = 'stopping';
-				setTimeout(() => {
-					instance.state = 'stopped';
-					instance.publicIp = '-';
-					instances = [...instances];
-				}, 2000);
+				const data = await response.json();
+				console.error(`Failed to ${action} instance:`, data.error);
 			}
-			instances = [...instances];
+		} catch (error) {
+			console.error(`Error ${action}ing instance:`, error);
+		} finally {
+			actionLoading[instanceId] = false;
 		}
-
-		actionLoading[instanceId] = false;
 	}
 
 	function getStateBgColor(state: string): string {
@@ -94,7 +90,8 @@
 			running: 'bg-[#067f68]',
 			stopped: 'bg-[#d13212]',
 			pending: 'bg-[#ff9900]',
-			stopping: 'bg-[#ff9900]'
+			stopping: 'bg-[#ff9900]',
+			terminated: 'bg-[#545b64]'
 		};
 		return colors[state as keyof typeof colors] || 'bg-[#545b64]';
 	}
@@ -134,9 +131,18 @@
 
 	<main class="p-6">
 		<div class="max-w-7xl mx-auto bg-white rounded-lg shadow overflow-hidden">
-			<div class="p-6 border-b border-[#e9ecef]">
-				<h2 class="text-2xl font-medium text-[#16191f] m-0 mb-1">EC2 Instances</h2>
-				<p class="text-[#545b64] text-sm m-0">Manage your Amazon EC2 instances</p>
+			<div class="p-6 border-b border-[#e9ecef] flex justify-between items-start">
+				<div>
+					<h2 class="text-2xl font-medium text-[#16191f] m-0 mb-1">EC2 Instances</h2>
+					<p class="text-[#545b64] text-sm m-0">Manage your Amazon EC2 instances</p>
+				</div>
+				<button
+					class="px-4 py-2 bg-[#ff9900] text-white rounded text-sm font-medium transition-colors hover:bg-[#ec7211] disabled:bg-[#aab7b8] disabled:cursor-not-allowed"
+					on:click={loadInstances}
+					disabled={loading}
+				>
+					{loading ? 'Refreshing...' : 'Refresh'}
+				</button>
 			</div>
 
 			{#if loading}
