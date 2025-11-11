@@ -2,6 +2,8 @@
 
 A simple web application to manage AWS EC2 instances and save money on remote development or VPS costs.
 
+![AWS Instance Management Dashboard](screenshot.png)
+
 ## Why This Project?
 
 Running EC2 instances 24/7 on AWS can be expensive. This tool helps you save money by making it easy to:
