@@ -16,12 +16,6 @@
 	let actionLoading: { [key: string]: boolean } = {};
 
 	onMount(() => {
-		// Check authentication
-		if (!sessionStorage.getItem('authenticated')) {
-			goto('/');
-			return;
-		}
-
 		// Mock data - replace with actual API call
 		setTimeout(() => {
 			instances = [
@@ -54,9 +48,16 @@
 		}, 1000);
 	});
 
-	function handleLogout() {
-		sessionStorage.removeItem('authenticated');
-		goto('/');
+	async function handleLogout() {
+		try {
+			await fetch('/api/logout', {
+				method: 'POST'
+			});
+		} catch (err) {
+			console.error('Logout error:', err);
+		} finally {
+			goto('/');
+		}
 	}
 
 	async function handleAction(instanceId: string, action: 'start' | 'stop') {

@@ -9,15 +9,27 @@
 		loading = true;
 		error = '';
 
-		// Simple password check (you can replace with API call later)
-		if (password === 'admin123') {
-			sessionStorage.setItem('authenticated', 'true');
-			goto('/dashboard');
-		} else {
-			error = 'Invalid password';
-		}
+		try {
+			const response = await fetch('/api/login', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json'
+				},
+				body: JSON.stringify({ password })
+			});
 
-		loading = false;
+			const data = await response.json();
+
+			if (response.ok && data.success) {
+				goto('/dashboard');
+			} else {
+				error = data.error || 'Invalid password';
+			}
+		} catch (err) {
+			error = 'An error occurred. Please try again.';
+		} finally {
+			loading = false;
+		}
 	}
 </script>
 
